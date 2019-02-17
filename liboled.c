@@ -1,3 +1,22 @@
+/*
+MIT License
+Copyright (c) 2019 Velli20
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
 
 // Includes
 
@@ -81,7 +100,6 @@ if ( (X_POSITION) < DISPLAY_WIDTH  &&                                           
      {                                                                                 \
         BUFFER_PIXEL(BUFFER, (X_POSITION), (Y_POSITION))&= ~(1 << ((Y_POSITION) % 8)); \
      }
-
 #define ASSERT(CONDITION)                                                              \
 if ( !(CONDITION) )                                                                    \
 {                                                                                      \
@@ -440,10 +458,7 @@ OLED_ERROR liboled_draw_circle(LIB_OLED_DRIVER* oled,
     ASSERT(oled->display_buffer);
 
     decision=  3 - (radius << 1);
-    current_x= 0;
-    current_y= radius;
-
-    while ( current_x <= current_y )
+    for ( current_x= 0, current_y= radius; current_x <= current_y; current_x++ )
     {
         DRAW_PIXEL(oled->display_buffer, (x_position + current_x), (y_position - current_y));
         DRAW_PIXEL(oled->display_buffer, (x_position - current_x), (y_position - current_y));
@@ -464,20 +479,64 @@ OLED_ERROR liboled_draw_circle(LIB_OLED_DRIVER* oled,
             decision+= ((current_x - current_y) << 2) + 10;
             current_y--;
         }
-
-        current_x++;
     }
 
     return(0);
 }
 
-// liboled_draw_rect
+// liboled_draw_filled_circle
 
-OLED_ERROR liboled_draw_rect(LIB_OLED_DRIVER* oled,
-                             uint16_t         x_position,
-                             uint16_t         y_position,
-                             uint16_t         width,
-                             uint16_t         height)
+OLED_ERROR liboled_draw_filled_circle(LIB_OLED_DRIVER* oled,
+                                      uint16_t         x_position,
+                                      uint16_t         y_position,
+                                      uint16_t         radius)
+{
+    int32_t  decision;
+    uint16_t current_x;
+    uint16_t current_y;
+    uint16_t n;
+
+    ASSERT(oled);
+    ASSERT(oled->display_buffer);
+
+    decision= 3 - (radius << 1);
+    for ( current_x= 0, current_y= radius; current_x <= current_y; current_x++ )
+    {
+        for ( n= 0; n < (2 * current_y); n++ )
+        {
+            DRAW_PIXEL(oled->display_buffer, (x_position - current_y + n), (y_position + current_x));
+            DRAW_PIXEL(oled->display_buffer, (x_position - current_y + n), (y_position - current_x));
+        }
+
+        for ( n= 0; n < (2 * current_x); n++ )
+        {
+            DRAW_PIXEL(oled->display_buffer, (x_position - current_x + n), (y_position - current_y));
+            DRAW_PIXEL(oled->display_buffer, (x_position - current_x + n), (y_position + current_y));
+        }
+
+        if ( decision < 0 )
+        {
+            decision+= (current_x << 2) + 6;
+        }
+
+        else
+        {
+            decision+= ((current_x - current_y) << 2) + 10;
+            current_y--;
+        }
+
+    }
+
+    return(0);
+}
+
+// liboled_draw_filled_rect
+
+OLED_ERROR liboled_draw_filled_rect(LIB_OLED_DRIVER* oled,
+                                    uint16_t         x_position,
+                                    uint16_t         y_position,
+                                    uint16_t         width,
+                                    uint16_t         height)
 {
     uint16_t i;
     uint16_t n;
@@ -492,6 +551,49 @@ OLED_ERROR liboled_draw_rect(LIB_OLED_DRIVER* oled,
         for ( i= 0; i < width; i++ )
             DRAW_PIXEL(oled->display_buffer, x_position + i, y_position + n);
 
+    return(0);
+}
+
+// liboled_draw_bitmap
+
+OLED_ERROR liboled_draw_bitmap(LIB_OLED_DRIVER*       oled,
+                               const LIB_OLED_BITMAP* bitmap,
+                               uint16_t               x_position,
+                               uint16_t               y_position)
+{
+    int16_t width_pos;
+    int16_t height_pos;
+    int16_t i;
+    uint8_t byte;
+
+    // Check parameters.
+
+    ASSERT(oled);
+    ASSERT(oled->display_buffer);
+    ASSERT(bitmap);
+    ASSERT(bitmap->bytes);
+
+    for ( height_pos= 0; height_pos < bitmap->height; height_pos++ )
+    {
+        if ( (height_pos + y_position) >= (DISPLAY_HEIGHT-1) )
+            break;
+
+        for ( width_pos= 0; width_pos < bitmap->width; width_pos+= 8 )
+        {
+            if ( (width_pos + x_position) >= (DISPLAY_WIDTH-1) )
+                break;
+
+            byte= bitmap->bytes[(height_pos * bitmap->width + width_pos) / DISPLAY_BITS_PER_PIXEL];
+
+            for ( i= 0; i < DISPLAY_BITS_PER_PIXEL; i++ )
+            {
+                if ( byte & (1 << i) )
+                     DRAW_PIXEL(oled->display_buffer, x_position + width_pos + i, y_position + height_pos);
+            }
+
+        }
+
+    }
     return(0);
 }
 

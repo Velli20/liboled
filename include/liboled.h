@@ -1,3 +1,22 @@
+/*
+MIT License
+Copyright (c) 2019 Velli20
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
 
 #ifndef liboled_h
 #define liboled_h
@@ -34,6 +53,15 @@ typedef struct liboled_font
 }
 LIB_OLED_FONT;
 
+typedef struct liboled_bitmap
+{
+    const uint8_t* bytes;
+
+    uint16_t width;
+    uint16_t height;
+}
+LIB_OLED_BITMAP;
+
 // liboled_driver
 
 typedef struct liboled_driver
@@ -69,6 +97,19 @@ OLED_ERROR liboled_draw_line(LIB_OLED_DRIVER* oled,
                              uint16_t         y2,
                              uint16_t         x2);
 
+// liboled_draw_filled_rect
+
+OLED_ERROR liboled_draw_filled_rect(LIB_OLED_DRIVER* oled,
+                                    uint16_t         x_position,
+                                    uint16_t         y_position,
+                                    uint16_t         width,
+                                    uint16_t         height);
+
+OLED_ERROR liboled_draw_bitmap(LIB_OLED_DRIVER*       oled,
+                               const LIB_OLED_BITMAP* bitmap,
+                               uint16_t               x_position,
+                               uint16_t               y_position);
+
 // liboled_draw_string
 
 OLED_ERROR liboled_draw_string(LIB_OLED_DRIVER*     oled,
@@ -77,20 +118,19 @@ OLED_ERROR liboled_draw_string(LIB_OLED_DRIVER*     oled,
                                const LIB_OLED_FONT* font,
                                const char*          text);
 
-// liboled_draw_rect
-
-OLED_ERROR liboled_draw_rect(LIB_OLED_DRIVER* oled,
-                             uint16_t         x_position,
-                             uint16_t         y_position,
-                             uint16_t         width,
-                             uint16_t         height);
-
 // liboled_draw_circle
 
 OLED_ERROR liboled_draw_circle(LIB_OLED_DRIVER* oled,
                                uint16_t         x_position,
                                uint16_t         y_position,
                                uint16_t         radius);
+
+// liboled_draw_filled_circle
+
+OLED_ERROR liboled_draw_filled_circle(LIB_OLED_DRIVER* oled,
+                                      uint16_t         x_position,
+                                      uint16_t         y_position,
+                                      uint16_t         radius);
 
 // liboled_buffer_refresh
 
