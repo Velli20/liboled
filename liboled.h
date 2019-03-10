@@ -26,20 +26,40 @@ SOFTWARE.
 #include <stdint.h>
 #include "driver/gpio.h"
 #include "driver/i2c.h"
-#include "liboled_config.h"
 
 // Defines
 
-#define OLED_RESULT_OK    0
-#define OLED_RESULT_ERROR 1
+#define OLED_RESULT_OK              0
+#define OLED_RESULT_ERROR           1
+
+#define DISPLAY_HEIGHT              64
+#define DISPLAY_WIDTH               128
+#define DISPLAY_BITS_PER_PIXEL      8
+#define DISPLAY_DEFAULT_ADDRESS     0x3C
 
 typedef int32_t OLED_ERROR;
+
+// Font Freetype data struct.
+
+typedef struct liboled_font_fft
+{
+    uint8_t width;
+    uint8_t height;
+    uint8_t stride;
+    uint8_t advance;
+    uint8_t bearing_x;
+    uint8_t bearing_y;
+
+    const uint8_t glyph[];
+}
+LIB_OLED_FONT_FFT;
 
 // liboled_font
 
 typedef struct liboled_font
 {
-    const uint8_t* font;
+    const uint8_t*  font;
+    const uint16_t* offset_table;
 
     // Char width and height.
 
@@ -57,6 +77,7 @@ typedef struct liboled_bitmap
 {
     const uint8_t* bytes;
 
+    uint16_t stride;
     uint16_t width;
     uint16_t height;
 }

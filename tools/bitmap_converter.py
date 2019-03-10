@@ -41,6 +41,7 @@ def create_byte_array(colors, output_file_name, width, height):
     # Create header file for pixel data.
 
     out_file= open(("%s_bmp.h" % (output_file_name)), "w+")
+    rnd_file= open(("rnd_test.txt" ), "w+")
 
     # Write include guard.
 
@@ -57,7 +58,15 @@ def create_byte_array(colors, output_file_name, width, height):
     out_file.write(("// %s_bmb_array\n\n" % (output_file_name)))
     out_file.write(("static const uint8_t %s_bmb_array[]=\n{\n    " % (output_file_name)))
 
-    # Write pixel data. Each pixel consits of 3 bytes, 24 bits. Itearate 3 bytes at time.
+    # Calculate bitmap stride.
+
+    stride= int(width / 8)
+    if width % 8 != 0:
+        stride+= 1
+
+    bmp_stride= ((((width * 24) + 31) & ~31) >> 3)
+
+    # Write pixel data. Each pixel consits of 3 bytes, 24 bits. Itearate 3 bytes at the time.
 
     for i in range(0, pixel_count, 3):
 
@@ -68,10 +77,13 @@ def create_byte_array(colors, output_file_name, width, height):
         # Set bit high if luminace threshold level is exceeded.
 
         if luminance > 0:
+            rnd_file.write("*")
             byte|= (1 << (width_pos % 8))
+        else:
+            rnd_file.write(" ")
 
         width_pos+= 1
-        if width_pos % 8 == 0:
+        if width_pos % 8 == 0 or width_pos == width:
             out_file.write("0x%02X," % byte)
             byte= 0
 
@@ -80,7 +92,7 @@ def create_byte_array(colors, output_file_name, width, height):
         if width_pos == width:
             width_pos=   0
             height_pos+= 1
-
+            rnd_file.write("\n")
             # Append line feed with a padding after each row.
 
             if height_pos < height:
@@ -96,20 +108,21 @@ def create_byte_array(colors, output_file_name, width, height):
 
     out_file.write("// %s_bmp\n\n" % (output_file_name))
     out_file.write("static const LIB_OLED_BITMAP %s_bmp=\n{\n" % (output_file_name))
-    out_file.write("    .bytes= %s_bmb_array,\n" % (output_file_name))
-    out_file.write("    .width= %d,\n" % (width))
+    out_file.write("    .bytes=  %s_bmb_array,\n" % (output_file_name))
+    out_file.write("    .stride= %d,\n" % (stride))
+    out_file.write("    .width=  %d,\n" % (width))
     out_file.write("    .height= %d\n};\n\n" % (height))
 
     # Close inclusion guard and file.
 
     out_file.write("#endif\n")
     out_file.close()
-
+    rnd_file.close()
     print("Output file saved as %s_bmp.h" % (output_file_name))
 
 # bitmap_to_bytes
 
-def bitmap_to_bytes(image, width, height):
+def bitmap_to_bytes(image, width, height, pixel_count):
 
     byte_list= []
     byte_row=  []
@@ -153,19 +166,24 @@ def main():
 
     # Size of the bitmap file header is 54 bytes. Seek 18 bytes to find out width and height.
 
-    image_file.seek(18)
+    image_file.seek(0x0A)
+    offset=  int(struct.unpack('I', image_file.read(4))[0])
+    image_file.seek(0x12)
     width=  int(struct.unpack('I', image_file.read(4))[0])
     height= int(struct.unpack('I', image_file.read(4))[0])
+    image_file.seek(0x22)
+    size= int(struct.unpack('I', image_file.read(4))[0])
 
     print("Converting %s. Bitmap size appears to be %d by %d pixels." % (file_path, width, height))
+    print("Pixel count:", size, " offset:", offset)
 
     # Seek rest of the header to the beginning of the pixel data.
 
-    image_file.seek(54)
+    image_file.seek(offset)
 
     # Read bitmap pixels to list.
 
-    byte_list= bitmap_to_bytes(image_file, width, height)
+    byte_list= bitmap_to_bytes(image_file, width, height, size)
 
     image_file.close()
 

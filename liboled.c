@@ -89,8 +89,8 @@ static const uint8_t startup_sequence[]=
 
 #define BUFFER_PIXEL(BUFFER, X_POSITION, Y_POSITION)(BUFFER[((((Y_POSITION) / DISPLAY_BITS_PER_PIXEL) * DISPLAY_WIDTH) + X_POSITION)])
 #define DRAW_PIXEL(BUFFER, X_POSITION, Y_POSITION)                                     \
-if ( (X_POSITION) < DISPLAY_WIDTH  &&                                                  \
-     (Y_POSITION) < DISPLAY_HEIGHT )                                                   \
+if ( (X_POSITION) < DISPLAY_WIDTH  && (X_POSITION) >= 0 &&                             \
+     (Y_POSITION) < DISPLAY_HEIGHT && (Y_POSITION) >= 0)                               \
      {                                                                                 \
         BUFFER_PIXEL(BUFFER, (X_POSITION), (Y_POSITION))|= (1 << ((Y_POSITION) % 8));  \
      }
@@ -524,7 +524,6 @@ OLED_ERROR liboled_draw_filled_circle(LIB_OLED_DRIVER* oled,
             decision+= ((current_x - current_y) << 2) + 10;
             current_y--;
         }
-
     }
 
     return(0);
@@ -563,6 +562,7 @@ OLED_ERROR liboled_draw_bitmap(LIB_OLED_DRIVER*       oled,
 {
     int16_t width_pos;
     int16_t height_pos;
+    int16_t n;
     int16_t i;
     uint8_t byte;
 
@@ -578,22 +578,29 @@ OLED_ERROR liboled_draw_bitmap(LIB_OLED_DRIVER*       oled,
         if ( (height_pos + y_position) >= (DISPLAY_HEIGHT-1) )
             break;
 
-        for ( width_pos= 0; width_pos < bitmap->width; width_pos+= 8 )
+        // Draw bitmap row.
+
+        for ( n= 0; n < bitmap->stride; n++ )
         {
-            if ( (width_pos + x_position) >= (DISPLAY_WIDTH-1) )
-                break;
+            byte= bitmap->bytes[(height_pos * bitmap->stride) + n];
 
-            byte= bitmap->bytes[(height_pos * bitmap->width + width_pos) / DISPLAY_BITS_PER_PIXEL];
+            // Draw byte pixels.
 
-            for ( i= 0; i < DISPLAY_BITS_PER_PIXEL; i++ )
+            for ( i= 0; i < 8; i++ )
             {
+                width_pos= x_position + i + (n * 8);
+
+                // Continue to next row if are about to draw outside of the screen bounds.
+
+                if ( width_pos >= (DISPLAY_WIDTH-1) )
+                    break;
+
                 if ( byte & (1 << i) )
-                     DRAW_PIXEL(oled->display_buffer, x_position + width_pos + i, y_position + height_pos);
+                     DRAW_PIXEL(oled->display_buffer, width_pos, y_position + height_pos);
             }
-
         }
-
     }
+
     return(0);
 }
 
@@ -605,11 +612,18 @@ OLED_ERROR liboled_draw_string(LIB_OLED_DRIVER*     oled,
                                const LIB_OLED_FONT* font,
                                const char*          text)
 {
+    const LIB_OLED_FONT_FFT* fft;
     int16_t  x_position;
     int16_t  y_position;
+    int16_t  pixel_x;
+    int16_t  pixel_y;
     uint32_t width;
+    int32_t  y;
+    int32_t  x;
     int32_t  i;
-    int32_t  n;
+    uint16_t font_offset;
+    uint16_t char_index;
+    uint8_t  byte;
 
     // Check parameters.
 
@@ -623,12 +637,27 @@ OLED_ERROR liboled_draw_string(LIB_OLED_DRIVER*     oled,
 
     while ( *text != '\0' )
     {
+        char_index= text[0] - font->first_char;
+        if ( text[0] < font->first_char ||char_index > font->char_count )
+        {
+            text++;
+            continue;
+        }
+
+        // Read font data osset from offset table.
+
+        font_offset= font->offset_table[char_index];
+
+        fft= (const LIB_OLED_FONT_FFT*) &font->font[font_offset];
+        if ( !fft )
+            return(OLED_RESULT_ERROR);
+
         // Handle new line or text overflow.
 
-        if ( x_position > (DISPLAY_WIDTH - font->width) || *text == '\n' )
+        if ( x_position >= (DISPLAY_WIDTH - fft->advance) || *text == '\n' )
         {
             x_position=  x_start;
-            y_position+= DISPLAY_BITS_PER_PIXEL;
+            y_position+= font->height;
 
             // Skip any spaces after new line.
 
@@ -643,8 +672,8 @@ OLED_ERROR liboled_draw_string(LIB_OLED_DRIVER*     oled,
 
         else if ( *text == ' ' )
         {
-            width= liboled_wordlen(&text[1]) * font->width;
-            if ( (x_position + font->width + width) > DISPLAY_WIDTH && width < DISPLAY_WIDTH )
+            width= liboled_wordlen(&text[1]) * fft->width;
+            if ( (x_position + (fft->width * 2) + width) >= DISPLAY_WIDTH && width < DISPLAY_WIDTH )
             {
                 text++;
 
@@ -652,23 +681,44 @@ OLED_ERROR liboled_draw_string(LIB_OLED_DRIVER*     oled,
                 // in two parts.
 
                 x_position=  x_start;
-                y_position+= DISPLAY_BITS_PER_PIXEL;
+                y_position+= font->height;
             }
         }
 
-        // Draw char pixel by pixel.
+        pixel_x= (x_position + fft->bearing_x);
+        pixel_y= (y_position + font->height - fft->bearing_y);
 
-        for ( i= 0; i < font->height && (y_position + font->height) >= 0; i++ )
+        // Draw glyph pixel by pixel.
+
+        for ( y= 0; y < fft->height; y++ )
         {
-            for ( n= 0; n < font->width; n++ )
+            if ( (y + y_position) >= DISPLAY_HEIGHT )
+                break;
+
+            // Draw glyph row.
+
+            for ( x= 0; x < fft->stride; x++ )
             {
-                if ( (y_position + n) >= 0 && font->font[((text[0] - 32) * font->width) + i] & (1 << n) )
-                    DRAW_PIXEL(oled->display_buffer, x_position + i, y_position + n);
+                if ( ((x * 8) + x_position) >= DISPLAY_WIDTH-1 )
+                    break;
+
+                byte= fft->glyph[(y * fft->stride) + x];
+
+                // Each bit represents pixel state (on/off).
+
+                for ( i= 0; i < 8; i++)
+                {
+                    if ( !(byte & (1 << i)) )
+                        continue;
+
+                    DRAW_PIXEL(oled->display_buffer, pixel_x + i + (x * 8), (pixel_y + y));
+                }
             }
+
         }
 
         text++;
-        x_position+= font->width;
+        x_position+= fft->advance;
     }
 
     return(0);
